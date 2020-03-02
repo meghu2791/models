@@ -23,14 +23,13 @@ lookup answer (or matrix) is also split into number and word lookup matrix
 Author: aneelakantan (Arvind Neelakantan)
 """
 from __future__ import print_function
-
 import math
 import os
 import re
 import numpy as np
 import unicodedata as ud
 import tensorflow as tf
-
+"# -*- coding: utf-8 -*-"
 bad_number = -200000.0  #number that is added to a corrupted table entry in a number column
 
 def is_nan_or_inf(number):
@@ -46,18 +45,6 @@ def correct_unicode(string):
   string = strip_accents(string)
   string = re.sub("\xc2\xa0", " ", string).strip()
   string = re.sub("\xe2\x80\x93", "-", string).strip()
-  #string = re.sub(ur'[\u0300-\u036F]', "", string)
-  string = re.sub("â€š", ",", string)
-  string = re.sub("â€¦", "...", string)
-  #string = re.sub("[Â·ãƒ»]", ".", string)
-  string = re.sub("Ë†", "^", string)
-  string = re.sub("Ëœ", "~", string)
-  string = re.sub("â€¹", "<", string)
-  string = re.sub("â€º", ">", string)
-  #string = re.sub("[â€˜â€™Â´`]", "'", string)
-  #string = re.sub("[â€œâ€Â«Â»]", "\"", string)
-  #string = re.sub("[â€¢â€ â€¡]", "", string)
-  #string = re.sub("[â€â€‘â€“â€”]", "-", string)
   string = re.sub(r'[\u2E00-\uFFFF]', "", string)
   string = re.sub("\\s+", " ", string).strip()
   return string
@@ -210,7 +197,7 @@ class WikiQuestionGenerator(object):
     self.test_loader = WikiQuestionLoader(test_name, root_folder)
     self.bad_examples = 0
     self.root_folder = root_folder
-    self.data_folder = os.path.join(self.root_folder, "annotated/data")
+    self.data_folder = os.path.join(self.root_folder, "./tagged/data")
     self.annotated_examples = {}
     self.annotated_tables = {}
     self.annotated_word_reject = {}
@@ -234,9 +221,6 @@ class WikiQuestionGenerator(object):
           i + 1 < len(ner_tags) and ner_tags[i] == ner_tags[i + 1] and
           ner_values[i] == ner_values[i + 1] and ner_values[i] != ""):
         word = ner_values[i]
-        word = word.replace(">", "").replace("<", "").replace("=", "").replace(
-            "%", "").replace("~", "").replace("$", "").replace("£", "").replace(
-                "€", "")
         if (re.search("[A-Z]", word) and not (is_date(word)) and not (
             self.is_money(word))):
           ner_values[i] = "A"
@@ -257,9 +241,6 @@ class WikiQuestionGenerator(object):
           (ner_tags[i] == "NUMBER" or ner_tags[i] == "MONEY" or
            ner_tags[i] == "PERCENT" or ner_tags[i] == "DATE")):
         word = ner_values[i]
-        word = word.replace(">", "").replace("<", "").replace("=", "").replace(
-            "%", "").replace("~", "").replace("$", "").replace("£", "").replace(
-                "€", "")
         if (re.search("[A-Z]", word) and not (is_date(word)) and not (
             self.is_money(word))):
           word = tokens[i]
@@ -293,10 +274,11 @@ class WikiQuestionGenerator(object):
       if (counter > 0):
         line = line.strip()
         (question_id, utterance, context, target_value, tokens, lemma_tokens,
-         pos_tags, ner_tags, ner_values, target_canon) = line.split("\t")
+         pos_tags, ner_tags, ner_values, target_canon, target_canonType) = line.split("\t")
         question = self.pre_process_sentence(tokens, ner_tags, ner_values)
         target_canon = target_canon.split("|")
-        self.annotated_examples[question_id] = WikiExample(
+        print(question_id)
+	self.annotated_examples[question_id] = WikiExample(
             question_id, question, target_canon, context)
         self.annotated_tables[context] = []
       counter += 1
@@ -322,7 +304,7 @@ class WikiQuestionGenerator(object):
 
   def load_annotated_tables(self):
     for table in self.annotated_tables.keys():
-      annotated_table = table.replace("csv", "annotated")
+      annotated_table = table.replace("csv", "tagged")
       orig_columns = []
       processed_columns = []
       f = tf.gfile.GFile(os.path.join(self.root_folder, annotated_table), "r")
@@ -330,9 +312,10 @@ class WikiQuestionGenerator(object):
       for line in f:
         if (counter > 0):
           line = line.strip()
-          line = line + "\t" * (13 - len(line.split("\t")))
-          (row, col, read_id, content, tokens, lemma_tokens, pos_tags, ner_tags,
-           ner_values, number, date, num2, read_list) = line.split("\t")
+	  line = line + "\t" * (14 - len(line.split("\t")))
+          if line:
+          	(row, col, read_id, content, tokens, lemma_tokens, pos_tags, ner_tags,
+           	ner_values, number, date, num2, read_list, listId) = line.split("\t")
         counter += 1
       f.close()
       max_row = int(row)
@@ -350,9 +333,9 @@ class WikiQuestionGenerator(object):
       for line in f:
         if (counter > 0):
           line = line.strip()
-          line = line + "\t" * (13 - len(line.split("\t")))
+          line = line + "\t" * (14 - len(line.split("\t")))
           (row, col, read_id, content, tokens, lemma_tokens, pos_tags, ner_tags,
-           ner_values, number, date, num2, read_list) = line.split("\t")
+           ner_values, number, date, num2, read_list, listId) = line.split("\t")
           entry = self.pre_process_sentence(tokens, ner_tags, ner_values)
           if (row == "-1"):
             column_names.append(entry)
@@ -409,7 +392,7 @@ class WikiQuestionGenerator(object):
       self.annotated_tables[table] = table_info
       f.close()
 
-  def answer_classification(self):
+  def answer_classification(self, file_r):
     lookup_questions = 0
     number_lookup_questions = 0
     word_lookup_questions = 0
@@ -421,7 +404,7 @@ class WikiQuestionGenerator(object):
     got = 0
     ice = {}
     with tf.gfile.GFile(
-        self.root_folder + "/arvind-with-norms-2.tsv", mode="r") as f:
+        self.root_folder + "/data/"+ file_r, mode="r") as f:
       lines = f.readlines()
       for line in lines:
         line = line.strip()
@@ -446,71 +429,72 @@ class WikiQuestionGenerator(object):
       n_rows = len(table_info.orig_columns[0])
       example.lookup_matrix = np.zeros((n_rows, n_cols))
       exact_matches = {}
-      for (example_id, ans_index, ans_raw, process_answer,
-           matched_cells) in ice[q_id]:
-        for match_cell in matched_cells.split("|"):
-          if (len(match_cell.split(",")) == 2):
-            (row, col) = match_cell.split(",")
-            row = int(row)
-            col = int(col)
-            if (row >= 0):
-              exact_matches[ans_index] = 1
-      answer_is_in_table = len(exact_matches) == len(example.answer)
-      if (answer_is_in_table):
-        for (example_id, ans_index, ans_raw, process_answer,
-             matched_cells) in ice[q_id]:
-          for match_cell in matched_cells.split("|"):
-            if (len(match_cell.split(",")) == 2):
-              (row, col) = match_cell.split(",")
-              row = int(row)
-              col = int(col)
-              example.lookup_matrix[row, col] = float(ans_index) + 1.0
-      example.lookup_number_answer = 0.0
-      if (answer_is_in_table):
-        lookup_questions += 1
-        if len(example.answer) == 1 and is_number(example.answer[0]):
-          example.number_answer = float(example.answer[0])
-          number_lookup_questions += 1
-          example.is_number_lookup = True
-        else:
-          #print "word lookup"
-          example.calc_answer = example.number_answer = 0.0
-          word_lookup_questions += 1
-          example.is_word_lookup = True
-      else:
-        if (len(example.answer) == 1 and is_number(example.answer[0])):
-          example.number_answer = example.answer[0]
-          example.is_number_calc = True
-        else:
-          bad_questions += 1
-          example.is_bad_example = True
-          example.is_unknown_answer = True
-      example.is_lookup = example.is_word_lookup or example.is_number_lookup
-      if not example.is_word_lookup and not example.is_bad_example:
-        number_questions += 1
-        example.calc_answer = example.answer[0]
-        example.lookup_number_answer = example.calc_answer
-      # Split up the lookup matrix into word part and number part
-      number_column_indices = table_info.number_column_indices
-      word_column_indices = table_info.word_column_indices
-      example.word_columns = table_info.word_columns
-      example.number_columns = table_info.number_columns
-      example.word_column_names = table_info.word_column_names
-      example.processed_number_columns = table_info.processed_number_columns
-      example.processed_word_columns = table_info.processed_word_columns
-      example.number_column_names = table_info.number_column_names
-      example.number_lookup_matrix = example.lookup_matrix[:,
-                                                           number_column_indices]
-      example.word_lookup_matrix = example.lookup_matrix[:, word_column_indices]
+      if q_id in ice:
+	      for (example_id, ans_index, ans_raw, process_answer,
+		   matched_cells) in ice[q_id]:
+		for match_cell in matched_cells.split("|"):
+		  if (len(match_cell.split(",")) == 2):
+		    (row, col) = match_cell.split(",")
+		    row = int(row)
+		    col = int(col)
+		    if (row >= 0):
+		      exact_matches[ans_index] = 1
+	      answer_is_in_table = len(exact_matches) == len(example.answer)
+	      if (answer_is_in_table):
+		for (example_id, ans_index, ans_raw, process_answer,
+		     matched_cells) in ice[q_id]:
+		  for match_cell in matched_cells.split("|"):
+		    if (len(match_cell.split(",")) == 2):
+		      (row, col) = match_cell.split(",")
+		      row = int(row)
+		      col = int(col)
+		      example.lookup_matrix[row, col] = float(ans_index) + 1.0
+	      example.lookup_number_answer = 0.0
+	      if (answer_is_in_table):
+		lookup_questions += 1
+		if len(example.answer) == 1 and is_number(example.answer[0]):
+		  example.number_answer = float(example.answer[0])
+		  number_lookup_questions += 1
+		  example.is_number_lookup = True
+		else:
+		  #print "word lookup"
+		  example.calc_answer = example.number_answer = 0.0
+		  word_lookup_questions += 1
+		  example.is_word_lookup = True
+	      else:
+		if (len(example.answer) == 1 and is_number(example.answer[0])):
+		  example.number_answer = example.answer[0]
+		  example.is_number_calc = True
+		else:
+		  bad_questions += 1
+		  example.is_bad_example = True
+		  example.is_unknown_answer = True
+	      example.is_lookup = example.is_word_lookup or example.is_number_lookup
+	      if not example.is_word_lookup and not example.is_bad_example:
+		number_questions += 1
+		example.calc_answer = example.answer[0]
+		example.lookup_number_answer = example.calc_answer
+	      # Split up the lookup matrix into word part and number part
+	      number_column_indices = table_info.number_column_indices
+	      word_column_indices = table_info.word_column_indices
+	      example.word_columns = table_info.word_columns
+	      example.number_columns = table_info.number_columns
+	      example.word_column_names = table_info.word_column_names
+	      example.processed_number_columns = table_info.processed_number_columns
+	      example.processed_word_columns = table_info.processed_word_columns
+	      example.number_column_names = table_info.number_column_names
+	      example.number_lookup_matrix = example.lookup_matrix[:,
+								   number_column_indices]
+	      example.word_lookup_matrix = example.lookup_matrix[:, word_column_indices]
 
   def load(self):
     train_data = []
     dev_data = []
     test_data = []
     self.load_annotated_data(
-        os.path.join(self.data_folder, "training.annotated"))
+        os.path.join(self.data_folder, "training.tagged"))
     self.load_annotated_tables()
-    self.answer_classification()
+    self.answer_classification("training.tsv")
     self.train_loader.load()
     self.dev_loader.load()
     for i in range(self.train_loader.num_questions()):
@@ -522,11 +506,12 @@ class WikiQuestionGenerator(object):
       dev_data.append(self.annotated_examples[example])
 
     self.load_annotated_data(
-        os.path.join(self.data_folder, "pristine-unseen-tables.annotated"))
+        os.path.join(self.data_folder, "pristine-unseen-tables.tagged"))
     self.load_annotated_tables()
-    self.answer_classification()
+    self.answer_classification("pristine-unseen-tables.tsv")
     self.test_loader.load()
     for i in range(self.test_loader.num_questions()):
       example = self.test_loader.examples[i]
-      test_data.append(self.annotated_examples[example])
+      if example in self.annotated_examples.keys():
+      	test_data.append(self.annotated_examples[example])
     return train_data, dev_data, test_data

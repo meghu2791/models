@@ -55,7 +55,7 @@ tf.flags.DEFINE_float("print_cost", 50.0,
 tf.flags.DEFINE_string("job_id", "temp", """job id""")
 tf.flags.DEFINE_string("output_dir", "../model/",
                        """output_dir""")
-tf.flags.DEFINE_string("data_dir", "../data/",
+tf.flags.DEFINE_string("data_dir", "./WikiTableQuestions/",
                        """data_dir""")
 tf.flags.DEFINE_integer("write_every", 500, "wrtie every N")
 tf.flags.DEFINE_integer("param_seed", 150, "")
